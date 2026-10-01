@@ -9,13 +9,29 @@ export function getDb(): DatabaseSync {
     return dbInstance;
   }
 
-  // Database location in the project's data directory
-  const dbDir = path.resolve(process.cwd(), 'data');
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+  const isVercel = Boolean(process.env.VERCEL);
+  let dbPath: string;
+
+  if (isVercel) {
+    const tmpDir = '/tmp';
+    dbPath = path.join(tmpDir, 'jis_database.sqlite');
+    const bundledDbPath = path.resolve(process.cwd(), 'data', 'jis_database.sqlite');
+    if (!fs.existsSync(dbPath) && fs.existsSync(bundledDbPath)) {
+      try {
+        fs.copyFileSync(bundledDbPath, dbPath);
+      } catch (err) {
+        console.error('Failed to copy bundled database to /tmp:', err);
+      }
+    }
+  } else {
+    // Database location in the project's data directory
+    const dbDir = path.resolve(process.cwd(), 'data');
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    dbPath = path.join(dbDir, 'jis_database.sqlite');
   }
 
-  const dbPath = path.join(dbDir, 'jis_database.sqlite');
   dbInstance = new DatabaseSync(dbPath);
 
   // Enable WAL and Foreign Keys for relational integrity and concurrent safety
