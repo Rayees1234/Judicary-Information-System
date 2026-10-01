@@ -1,0 +1,36 @@
+---
+interface Props {
+  status: string;
+}
+
+const { status } = Astro.props;
+
+function getBadgeClass(status: string) {
+  switch (status) {
+    case 'REGISTERED':
+    case 'FILED':
+      return 'badge-registered';
+    case 'HEARING_SCHEDULED':
+      return 'badge-hearing';
+    case 'ADJOURNED':
+      return 'badge-adjourned';
+    case 'RESERVED_FOR_JUDGMENT':
+      return 'badge-urgent';
+    case 'DISPOSED':
+    case 'SETTLED':
+    case 'WITHDRAWN':
+    case 'CLOSED':
+      return 'badge-closed';
+    default:
+      return 'badge-registered';
+  }
+}
+
+function formatLabel(status: string) {
+  return status.replace(/_/g, ' ');
+}
+---
+
+<span class:list={['badge', getBadgeClass(status)]}>
+  {formatLabel(status)}
+</span>

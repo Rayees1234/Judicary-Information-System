@@ -1,0 +1,286 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import StatusBadge from '../../components/StatusBadge.astro';
+import { getCurrentUser } from '../../lib/auth';
+import { searchCases } from '../../lib/services/caseService';
+
+const user = getCurrentUser(Astro.request);
+const url = Astro.url;
+
+const query = url.searchParams.get('q') || undefined;
+const caseType = url.searchParams.get('type') || undefined;
+const status = url.searchParams.get('status') || undefined;
+
+const { cases, total } = searchCases({ query, caseType, status, limit: 100 }, user);
+---
+
+<BaseLayout title="Case Records & Search — Judiciary Information System (JIS)">
+  <Navbar />
+
+  <main class="container-wide main-content">
+    <div class="page-header">
+      <div>
+        <div class="breadcrumbs">
+          <a href="/">Home</a> &rsaquo; <span>Cases</span>
+        </div>
+        <h1 class="page-title">Court Case Records</h1>
+        <p class="page-desc">Comprehensive repository of pending and disposed court proceedings.</p>
+      </div>
+
+      <div class="header-actions">
+        {user && ['CLERK', 'ADMIN'].includes(user.role) && (
+          <a href="/cases/new" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Register New Case
+          </a>
+        )}
+      </div>
+    </div>
+
+    {user && (user.role === 'LAWYER' || user.role === 'LITIGANT') && (
+      <div class="role-scope-notice card-cream">
+        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <span>
+          <strong>Role-Restricted View:</strong> As an authorized <strong>{user.role}</strong> ({user.full_name}), you are viewing only cases you represent or are a designated party to, in accordance with RBAC rules.
+        </span>
+      </div>
+    )}
+
+    <!-- Filter & Search Bar -->
+    <div class="card filter-card">
+      <form method="GET" action="/cases" class="filter-form">
+        <div class="form-grid">
+          <div class="filter-field">
+            <label class="label">Search Keyword / CIN</label>
+            <input 
+              type="text" 
+              name="q" 
+              value={query || ''} 
+              placeholder="e.g. DL-HC-CIV or party name" 
+              class="input"
+            />
+          </div>
+
+          <div class="filter-field">
+            <label class="label">Case Type</label>
+            <select name="type" class="select">
+              <option value="">All Case Types</option>
+              <option value="CIVIL" selected={caseType === 'CIVIL'}>Civil (CIV)</option>
+              <option value="CRIMINAL" selected={caseType === 'CRIMINAL'}>Criminal (CRM)</option>
+              <option value="WRIT_PETITION" selected={caseType === 'WRIT_PETITION'}>Writ Petition (WPT)</option>
+              <option value="APPEAL" selected={caseType === 'APPEAL'}>Appeal (APP)</option>
+              <option value="COMMERCIAL" selected={caseType === 'COMMERCIAL'}>Commercial (COM)</option>
+              <option value="FAMILY" selected={caseType === 'FAMILY'}>Family (FAM)</option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label class="label">Status</label>
+            <select name="status" class="select">
+              <option value="">All Statuses</option>
+              <option value="REGISTERED" selected={status === 'REGISTERED'}>Registered</option>
+              <option value="HEARING_SCHEDULED" selected={status === 'HEARING_SCHEDULED'}>Hearing Scheduled</option>
+              <option value="ADJOURNED" selected={status === 'ADJOURNED'}>Adjourned</option>
+              <option value="RESERVED_FOR_JUDGMENT" selected={status === 'RESERVED_FOR_JUDGMENT'}>Reserved for Judgment</option>
+              <option value="DISPOSED" selected={status === 'DISPOSED'}>Disposed / Closed</option>
+            </select>
+          </div>
+
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary" style="height: 38px;">Apply Filters</button>
+            <a href="/cases" class="btn btn-outline" style="height: 38px;">Reset</a>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Results Table -->
+    <div class="results-header">
+      <span class="count-badge">Found <strong>{total}</strong> Matching Records</span>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>CIN</th>
+            <th>Filing Date</th>
+            <th>Type</th>
+            <th>Matter & Parties</th>
+            <th>Presiding Judge</th>
+            <th>Adjournments</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cases.length > 0 ? (
+            cases.map(c => (
+              <tr>
+                <td>
+                  <a href={`/cases/${c.cin}`} class="cin-tag">{c.cin}</a>
+                </td>
+                <td>{c.filing_date}</td>
+                <td>
+                  <span class="type-tag">{c.case_type}</span>
+                </td>
+                <td>
+                  <div style="font-weight: 600;">{c.title}</div>
+                  <div style="font-size: 0.8125rem; color: var(--text-secondary); margin-top: 2px;">
+                    <strong>Petitioner:</strong> {c.petitioner_name} 
+                    {c.petitioner_lawyer_name && <span style="color: var(--text-muted);">({c.petitioner_lawyer_name})</span>}
+                  </div>
+                  <div style="font-size: 0.8125rem; color: var(--text-secondary);">
+                    <strong>Respondent:</strong> {c.respondent_name}
+                    {c.respondent_lawyer_name && <span style="color: var(--text-muted);">({c.respondent_lawyer_name})</span>}
+                  </div>
+                </td>
+                <td>{c.judge_name || 'Unassigned'}</td>
+                <td>
+                  {c.adjournment_count > 0 ? (
+                    <span class:list={['adjournment-pill', { 'flagged': c.adjournment_count >= 2 }]}>
+                      {c.adjournment_count} {c.adjournment_count === 1 ? 'Adjournment' : 'Adjournments'}
+                      {c.adjournment_count >= 2 && ' ⚠️'}
+                    </span>
+                  ) : (
+                    <span style="color: var(--text-muted); font-size: 0.8125rem;">0</span>
+                  )}
+                </td>
+                <td>
+                  <StatusBadge status={c.status} />
+                </td>
+                <td>
+                  <a href={`/cases/${c.cin}`} class="btn btn-outline btn-sm">
+                    View Dossier &rarr;
+                  </a>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                No matching case records found. Adjust your search query or filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<style>
+  .main-content {
+    padding: 2.5rem 0;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+  }
+
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .page-desc {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .role-scope-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1.25rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+  }
+
+  .filter-card {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    background: #ffffff;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .results-header {
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .count-badge {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  .type-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--bg-cream);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+  }
+
+  .adjournment-pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--status-adjourned-bg);
+    color: var(--status-adjourned-text);
+    border: 1px solid var(--status-adjourned-border);
+  }
+
+  .adjournment-pill.flagged {
+    background: var(--status-urgent-bg);
+    color: var(--status-urgent-text);
+    border-color: var(--status-urgent-border);
+  }
+
+  @media (max-width: 900px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+  }
+</style>

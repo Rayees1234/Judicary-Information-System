@@ -1,0 +1,317 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import StatusBadge from '../components/StatusBadge.astro';
+import { getCauseList } from '../lib/services/hearingService';
+import { getJudges } from '../lib/services/userService';
+
+const url = Astro.url;
+const dateParam = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+const courtroomParam = url.searchParams.get('courtroom') || undefined;
+const judgeParam = url.searchParams.get('judgeId') ? Number(url.searchParams.get('judgeId')) : undefined;
+
+const causeList = getCauseList(dateParam, courtroomParam, judgeParam);
+const judges = getJudges();
+---
+
+<BaseLayout title={`Official Daily Cause List (${dateParam}) — JIS`}>
+  <div class="no-print">
+    <Navbar />
+  </div>
+
+  <main class="container-wide causelist-page">
+    <div class="breadcrumbs no-print">
+      <a href="/">Home</a> &rsaquo; <span>Cause List</span>
+    </div>
+
+    <!-- Cause List Header -->
+    <div class="cl-official-header">
+      <div class="court-crest">HIGH COURT OF JUDICATURE</div>
+      <h1 class="cl-title">DAILY CAUSE LIST</h1>
+      <div class="cl-date-display">
+        List of Business for <strong>{dateParam}</strong> (Commencing at 10:30 AM)
+      </div>
+      <p class="cl-instructions no-print">
+        Advocates and parties are requested to strictly adhere to courtroom serial numbers.
+      </p>
+    </div>
+
+    <!-- Filters & Print Bar -->
+    <div class="card cl-controls no-print">
+      <form method="GET" action="/causelist" class="cl-filter-form">
+        <div class="cl-filter-grid">
+          <div class="form-group">
+            <label class="label">Cause List Date</label>
+            <input type="date" name="date" class="input" value={dateParam} />
+          </div>
+
+          <div class="form-group">
+            <label class="label">Courtroom</label>
+            <select name="courtroom" class="select">
+              <option value="">All Courtrooms</option>
+              <option value="Courtroom 1" selected={courtroomParam === 'Courtroom 1'}>Courtroom 1</option>
+              <option value="Courtroom 2" selected={courtroomParam === 'Courtroom 2'}>Courtroom 2</option>
+              <option value="Courtroom 3" selected={courtroomParam === 'Courtroom 3'}>Courtroom 3</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="label">Presiding Judge</label>
+            <select name="judgeId" class="select">
+              <option value="">All Judges</option>
+              {judges.map(j => (
+                <option value={j.id} selected={judgeParam === j.id}>{j.full_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="cl-filter-btn-group">
+            <button type="submit" class="btn btn-primary" style="height: 38px;">Fetch List</button>
+            <a href="/causelist" class="btn btn-outline" style="height: 38px;">Today</a>
+          </div>
+        </div>
+      </form>
+
+      <div class="print-actions">
+        <button class="btn btn-outline btn-sm" onclick="window.print()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          Print Cause List
+        </button>
+
+        <button class="btn btn-outline btn-sm" onclick="exportCsv()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Cause List Table -->
+    <div class="table-wrapper cl-table-wrap">
+      <table class="table" id="causeListTable">
+        <thead>
+          <tr>
+            <th style="width: 50px;">Item #</th>
+            <th style="width: 110px;">Time & Court</th>
+            <th style="width: 180px;">CIN</th>
+            <th>Matter & Parties</th>
+            <th>Legal Counsel</th>
+            <th>Purpose</th>
+            <th>Presiding Bench</th>
+            <th class="no-print">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {causeList.length > 0 ? (
+            causeList.map((h, idx) => (
+              <tr>
+                <td style="font-weight: 700; text-align: center;">{idx + 1}</td>
+                <td>
+                  <strong>{h.hearing_date.split(' ')[1] || '10:30'}</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary);">{h.courtroom}</div>
+                </td>
+                <td>
+                  <a href={`/cases/${h.case_cin}`} class="cin-tag">{h.case_cin}</a>
+                </td>
+                <td>
+                  <div style="font-weight: 600;">{h.case_title}</div>
+                  <div style="font-size: 0.8125rem; color: var(--text-secondary); margin-top: 2px;">
+                    {h.petitioner_name} <em>v.</em> {h.respondent_name}
+                  </div>
+                </td>
+                <td style="font-size: 0.8125rem;">
+                  <div><span style="color: var(--text-muted);">P:</span> {h.petitioner_lawyer_name || 'Party in Person'}</div>
+                  <div><span style="color: var(--text-muted);">R:</span> {h.respondent_lawyer_name || 'Standing Counsel'}</div>
+                </td>
+                <td style="font-size: 0.8125rem; font-weight: 500;">
+                  {h.purpose}
+                </td>
+                <td>
+                  <div style="font-size: 0.875rem; font-weight: 600;">{h.judge_name || 'Assigned Bench'}</div>
+                </td>
+                <td class="no-print">
+                  <StatusBadge status={h.status} />
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                No matters listed for hearing on {dateParam} with current filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Cause List Footer Note -->
+    <div class="cl-official-footer">
+      <p>By Order of Hon'ble Chief Justice & Companion Judges</p>
+      <p style="font-weight: 700; margin-top: 0.25rem;">Registrar (Judicial) &bull; High Court of Judicature</p>
+    </div>
+  </main>
+
+  <div class="no-print">
+    <Footer />
+  </div>
+</BaseLayout>
+
+<script is:inline>
+  function exportCsv() {
+    const table = document.getElementById('causeListTable');
+    let csv = [];
+    for (let row of table.rows) {
+      let cols = [];
+      for (let cell of row.cells) {
+        if (!cell.classList.contains('no-print')) {
+          cols.push('"' + cell.innerText.replace(/"/g, '""').replace(/\n/g, ' ') + '"');
+        }
+      }
+      csv.push(cols.join(','));
+    }
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `causelist_${window.location.search || 'today'}.csv`;
+    a.click();
+  }
+</script>
+
+<style>
+  .causelist-page {
+    padding: 2rem 0 4rem;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+  }
+
+  .cl-official-header {
+    text-align: center;
+    border-bottom: 2px solid var(--text-charcoal);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .court-crest {
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  .cl-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+
+  .cl-date-display {
+    font-size: 1.125rem;
+    color: var(--text-charcoal);
+  }
+
+  .cl-instructions {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    font-style: italic;
+  }
+
+  .cl-controls {
+    background: #ffffff;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1.5rem;
+  }
+
+  .cl-filter-form {
+    flex: 1;
+  }
+
+  .cl-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+
+  .cl-filter-btn-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .print-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .cl-table-wrap {
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .cl-official-footer {
+    text-align: right;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+    font-size: 0.875rem;
+    color: var(--text-charcoal);
+  }
+
+  @media (max-width: 900px) {
+    .cl-controls {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .cl-filter-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Optimized Print Stylesheet for Court Notice Board Printing */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    body {
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
+    .causelist-page {
+      padding: 0 !important;
+    }
+    .table-wrapper {
+      border: 1px solid #000000 !important;
+    }
+    .table th, .table td {
+      border: 1px solid #000000 !important;
+      padding: 6px 8px !important;
+    }
+    .cin-tag {
+      background: none !important;
+      border: none !important;
+      color: #000000 !important;
+      font-weight: 700 !important;
+      padding: 0 !important;
+    }
+  }
+</style>

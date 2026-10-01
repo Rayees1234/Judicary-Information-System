@@ -1,0 +1,230 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import StatusBadge from '../components/StatusBadge.astro';
+import { getDb } from '../lib/db/index';
+import { getJudges } from '../lib/services/userService';
+import { getCurrentUser } from '../lib/auth';
+
+const user = getCurrentUser(Astro.request);
+const url = Astro.url;
+const db = getDb();
+
+const courtroom = url.searchParams.get('courtroom') || '';
+const judgeId = url.searchParams.get('judgeId') || '';
+const status = url.searchParams.get('status') || '';
+
+let sql = `
+  SELECT h.*, 
+    c.cin as case_cin, c.title as case_title, c.case_type,
+    c.petitioner_name, c.respondent_name,
+    j.full_name as judge_name
+  FROM hearings h
+  JOIN cases c ON h.case_id = c.id
+  LEFT JOIN users j ON h.judge_id = j.id
+  WHERE 1=1
+`;
+const bindings: any[] = [];
+
+if (courtroom) {
+  sql += ' AND h.courtroom = ?';
+  bindings.push(courtroom);
+}
+if (judgeId) {
+  sql += ' AND h.judge_id = ?';
+  bindings.push(Number(judgeId));
+}
+if (status) {
+  sql += ' AND h.status = ?';
+  bindings.push(status);
+}
+
+sql += ' ORDER BY h.hearing_date ASC LIMIT 50';
+
+const hearings = db.prepare(sql).all(...bindings) as any[];
+const judges = getJudges();
+---
+
+<BaseLayout title="Hearings & Court Calendar — Judiciary Information System (JIS)">
+  <Navbar />
+
+  <main class="container-wide main-content">
+    <div class="breadcrumbs">
+      <a href="/">Home</a> &rsaquo; <span>Hearings Calendar</span>
+    </div>
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Hearing Schedule & Calendar</h1>
+        <p class="page-desc">Comprehensive schedule of courtroom proceedings with conflict-prevention safeguards.</p>
+      </div>
+
+      <div class="header-actions">
+        <a href="/causelist" class="btn btn-outline">
+          View Daily Cause List &rarr;
+        </a>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card filter-card">
+      <form method="GET" action="/hearings" class="filter-form">
+        <div class="filter-grid">
+          <div class="form-group">
+            <label class="label">Courtroom</label>
+            <select name="courtroom" class="select">
+              <option value="">All Courtrooms</option>
+              <option value="Courtroom 1" selected={courtroom === 'Courtroom 1'}>Courtroom 1</option>
+              <option value="Courtroom 2" selected={courtroom === 'Courtroom 2'}>Courtroom 2</option>
+              <option value="Courtroom 3" selected={courtroom === 'Courtroom 3'}>Courtroom 3</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="label">Presiding Judge</label>
+            <select name="judgeId" class="select">
+              <option value="">All Judges</option>
+              {judges.map(j => (
+                <option value={j.id} selected={judgeId === String(j.id)}>{j.full_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="label">Hearing Status</label>
+            <select name="status" class="select">
+              <option value="">All Statuses</option>
+              <option value="SCHEDULED" selected={status === 'SCHEDULED'}>Scheduled</option>
+              <option value="IN_PROGRESS" selected={status === 'IN_PROGRESS'}>In Progress</option>
+              <option value="COMPLETED" selected={status === 'COMPLETED'}>Completed</option>
+              <option value="ADJOURNED" selected={status === 'ADJOURNED'}>Adjourned</option>
+            </select>
+          </div>
+
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary" style="height: 38px;">Filter Hearings</button>
+            <a href="/hearings" class="btn btn-outline" style="height: 38px;">Reset</a>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Hearings List -->
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date & Time</th>
+            <th>Courtroom</th>
+            <th>CIN</th>
+            <th>Matter & Parties</th>
+            <th>Purpose</th>
+            <th>Presiding Judge</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {hearings.length > 0 ? (
+            hearings.map(h => (
+              <tr>
+                <td>
+                  <strong>{h.hearing_date}</strong>
+                </td>
+                <td>{h.courtroom}</td>
+                <td>
+                  <a href={`/cases/${h.case_cin}`} class="cin-tag">{h.case_cin}</a>
+                </td>
+                <td>
+                  <div style="font-weight: 600;">{h.case_title}</div>
+                  <div style="font-size: 0.8125rem; color: var(--text-secondary);">
+                    {h.petitioner_name} vs {h.respondent_name}
+                  </div>
+                </td>
+                <td style="font-size: 0.8125rem;">
+                  {h.purpose}
+                  {h.proceedings_notes && (
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                      <em>Note: {h.proceedings_notes}</em>
+                    </div>
+                  )}
+                </td>
+                <td>{h.judge_name || 'Designated Bench'}</td>
+                <td>
+                  <StatusBadge status={h.status} />
+                </td>
+                <td>
+                  <a href={`/cases/${h.case_cin}`} class="btn btn-outline btn-sm">
+                    Open Dossier
+                  </a>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                No hearings found matching current filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<style>
+  .main-content {
+    padding: 2.5rem 0;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+  }
+
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+
+  .page-desc {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .filter-card {
+    background: #ffffff;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 900px) {
+    .filter-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

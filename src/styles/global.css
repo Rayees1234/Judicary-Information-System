@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Lovable-inspired warm parchment palette */
+  --bg-cream: #f7f4ed;
+  --bg-surface: #fcfbf8;
+  --bg-card: #ffffff;
+  --text-charcoal: #1c1c1c;
+  --text-secondary: #5f5f5d;
+  --text-muted: rgba(28, 28, 28, 0.5);
+  --border-light: #eceae4;
+  --border-interactive: rgba(28, 28, 28, 0.3);
+  --border-dark: #1c1c1c;
+  --focus-ring: rgba(59, 130, 246, 0.4);
+
+  /* Status Colors */
+  --status-registered-bg: #ecfdf5;
+  --status-registered-text: #065f46;
+  --status-registered-border: #a7f3d0;
+
+  --status-hearing-bg: #eff6ff;
+  --status-hearing-text: #1e40af;
+  --status-hearing-border: #bfdbfe;
+
+  --status-adjourned-bg: #fffbeb;
+  --status-adjourned-text: #92400e;
+  --status-adjourned-border: #fde68a;
+
+  --status-closed-bg: #f3f4f6;
+  --status-closed-text: #374151;
+  --status-closed-border: #d1d5db;
+
+  --status-urgent-bg: #fef2f2;
+  --status-urgent-text: #991b1b;
+  --status-urgent-border: #fecaca;
+
+  /* Button Insets */
+  --btn-inset-shadow: rgba(255, 255, 255, 0.2) 0px 0.5px 0px 0px inset, rgba(0, 0, 0, 0.2) 0px 0px 0px 0.5px inset, rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --focus-shadow: rgba(0, 0, 0, 0.08) 0px 4px 12px;
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100%;
+  background-color: var(--bg-cream);
+  color: var(--text-charcoal);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Typography styles */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-charcoal);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: var(--text-charcoal);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.15s ease;
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+/* Common Layout Containers */
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.container-wide {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Buttons adhering to DESIGN.md */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 8px 16px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background-color: var(--text-charcoal);
+  color: #fcfbf8;
+  box-shadow: var(--btn-inset-shadow);
+  border-color: var(--text-charcoal);
+}
+
+.btn-primary:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--text-charcoal);
+  border: 1px solid var(--border-interactive);
+}
+
+.btn-outline:hover {
+  background-color: rgba(28, 28, 28, 0.04);
+}
+
+.btn-surface {
+  background-color: var(--bg-cream);
+  color: var(--text-charcoal);
+  border: 1px solid var(--border-light);
+}
+
+.btn-surface:hover {
+  background-color: #ede9df;
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+  border-radius: 4px;
+}
+
+.btn-pill {
+  border-radius: 9999px;
+  padding: 6px 14px;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.badge-registered {
+  background-color: var(--status-registered-bg);
+  color: var(--status-registered-text);
+  border: 1px solid var(--status-registered-border);
+}
+
+.badge-hearing {
+  background-color: var(--status-hearing-bg);
+  color: var(--status-hearing-text);
+  border: 1px solid var(--status-hearing-border);
+}
+
+.badge-adjourned {
+  background-color: var(--status-adjourned-bg);
+  color: var(--status-adjourned-text);
+  border: 1px solid var(--status-adjourned-border);
+}
+
+.badge-closed {
+  background-color: var(--status-closed-bg);
+  color: var(--status-closed-text);
+  border: 1px solid var(--status-closed-border);
+}
+
+.badge-urgent {
+  background-color: var(--status-urgent-bg);
+  color: var(--status-urgent-text);
+  border: 1px solid var(--status-urgent-border);
+}
+
+/* Cards */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.card-cream {
+  background-color: var(--bg-cream);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* Form inputs */
+.input, .select, .textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-interactive);
+  border-radius: 6px;
+  color: var(--text-charcoal);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--text-charcoal);
+}
+
+/* Table styles */
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.table th {
+  background-color: var(--bg-cream);
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-charcoal);
+}
+
+.table tbody tr:hover {
+  background-color: rgba(28, 28, 28, 0.02);
+}
+
+.cin-tag {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+  font-size: 0.8125rem;
+}

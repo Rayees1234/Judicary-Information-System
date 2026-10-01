@@ -22,3 +22,10 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# SQLite temporary WAL files
+data/*.sqlite-shm
+data/*.sqlite-wal
+
+# IDE metadata
+GEMINI.md

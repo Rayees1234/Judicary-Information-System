@@ -1,0 +1,425 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import { getCurrentUser } from '../../lib/auth';
+import { getJudges, getLawyers } from '../../lib/services/userService';
+
+const user = getCurrentUser(Astro.request);
+if (!user || !['CLERK', 'ADMIN'].includes(user.role)) {
+  return Astro.redirect('/login');
+}
+
+const judges = getJudges();
+const lawyers = getLawyers();
+const today = new Date().toISOString().split('T')[0];
+---
+
+<BaseLayout title="Register New Case — Judiciary Information System (JIS)">
+  <Navbar />
+
+  <main class="container main-content">
+    <div class="breadcrumbs">
+      <a href="/">Home</a> &rsaquo; <a href="/cases">Cases</a> &rsaquo; <span>Register New Case</span>
+    </div>
+
+    <div class="form-header">
+      <h1 class="page-title">Case Registration & CIN Generation</h1>
+      <p class="page-desc">
+        Official e-Filing intake. Every registered case is automatically assigned an immutable Case Identification Number (CIN) compliant with NJDG standards.
+      </p>
+    </div>
+
+    <!-- Live CIN Preview Banner -->
+    <div class="cin-banner card-cream">
+      <div class="cin-banner-content">
+        <span class="cin-banner-label">Projected Case Identification Number:</span>
+        <span id="cin-preview" class="cin-preview-tag">DL-HC-CIV-2026-XXXX</span>
+      </div>
+      <p class="cin-banner-note">
+        Format: [State]-[Court]-[Type]-[Filing Year]-[Serial Sequence]
+      </p>
+    </div>
+
+    <div id="error-alert" class="alert-box alert-error" style="display: none;"></div>
+
+    <form id="case-reg-form" class="card registration-card">
+      <div class="section-title-wrap">
+        <h3 class="form-section-title">1. Case Classification & Court Jurisdiction</h3>
+      </div>
+
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label class="label" for="stateCode">State Jurisdiction *</label>
+          <select id="stateCode" name="stateCode" class="select" required onchange="updateCinPreview()">
+            <option value="DL" selected>Delhi (DL)</option>
+            <option value="JK">Jammu & Kashmir (JK)</option>
+            <option value="MH">Maharashtra (MH)</option>
+            <option value="KA">Karnataka (KA)</option>
+            <option value="UP">Uttar Pradesh (UP)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="courtCode">Court Level *</label>
+          <select id="courtCode" name="courtCode" class="select" required onchange="updateCinPreview()">
+            <option value="HC" selected>High Court (HC)</option>
+            <option value="DC">District Court (DC)</option>
+            <option value="SC">Sessions Court (SC)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="caseType">Case Category / Type *</label>
+          <select id="caseType" name="caseType" class="select" required onchange="updateCinPreview()">
+            <option value="CIVIL" selected>Civil Suit (CIV)</option>
+            <option value="CRIMINAL">Criminal Petition (CRM)</option>
+            <option value="WRIT_PETITION">Writ Petition (WPT)</option>
+            <option value="APPEAL">Regular Appeal (APP)</option>
+            <option value="COMMERCIAL">Commercial Dispute (COM)</option>
+            <option value="FAMILY">Family / Matrimonial (FAM)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid-2" style="margin-top: 1rem;">
+        <div class="form-group">
+          <label class="label" for="courtName">Court Name *</label>
+          <input type="text" id="courtName" name="courtName" class="input" value="High Court of Judicature" required />
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="filingDate">Filing Date *</label>
+          <input type="date" id="filingDate" name="filingDate" class="input" value={today} required onchange="updateCinPreview()" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label class="label" for="category">Subject / Statutory Classification *</label>
+        <input type="text" id="category" name="category" class="input" placeholder="e.g. Land Acquisition Appeal / Commercial Arbitration / Bail u/s 439" required />
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label class="label" for="title">Case Title (Petitioner vs Respondent) *</label>
+        <input type="text" id="title" name="title" class="input" placeholder="e.g. Ramesh Kumar vs Municipal Corporation of Delhi" required />
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label class="label" for="description">Summary of Plaint / Pleadings</label>
+        <textarea id="description" name="description" class="textarea" rows="3" placeholder="Provide background summary and core relief prayed for..."></textarea>
+      </div>
+
+      <!-- Parties Section -->
+      <div class="section-title-wrap" style="margin-top: 2rem;">
+        <h3 class="form-section-title">2. Parties & Legal Counsel</h3>
+      </div>
+
+      <div class="parties-container">
+        <!-- Petitioner -->
+        <div class="party-box card-cream">
+          <h4 class="party-heading">Petitioner Information</h4>
+          
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <label class="label" for="petitionerName">Petitioner Full Name *</label>
+            <input type="text" id="petitionerName" name="petitionerName" class="input" required />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="label" for="petitionerContact">Contact Phone / Email</label>
+            <input type="text" id="petitionerContact" name="petitionerContact" class="input" placeholder="+91-98XXXXXXXX" />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="label" for="petitionerAddress">Residential / Office Address</label>
+            <input type="text" id="petitionerAddress" name="petitionerAddress" class="input" />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="label" for="petitionerLawyerId">Designated Counsel for Petitioner</label>
+            <select id="petitionerLawyerId" name="petitionerLawyerId" class="select">
+              <option value="">-- Select Registered Advocate --</option>
+              {lawyers.map(l => (
+                <option value={l.id}>{l.full_name} ({l.bar_registration_no || 'Advocate'})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <!-- Respondent -->
+        <div class="party-box card-cream">
+          <h4 class="party-heading">Respondent Information</h4>
+
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <label class="label" for="respondentName">Respondent Full Name / Agency *</label>
+            <input type="text" id="respondentName" name="respondentName" class="input" required />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="label" for="respondentContact">Contact Phone / Email</label>
+            <input type="text" id="respondentContact" name="respondentContact" class="input" />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="label" for="respondentAddress">Office / Department Address</label>
+            <input type="text" id="respondentAddress" name="respondentAddress" class="input" />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="label" for="respondentLawyerId">Designated Counsel for Respondent</label>
+            <select id="respondentLawyerId" name="respondentLawyerId" class="select">
+              <option value="">-- Select Registered Advocate --</option>
+              {lawyers.map(l => (
+                <option value={l.id}>{l.full_name} ({l.bar_registration_no || 'Advocate'})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bench Assignment -->
+      <div class="section-title-wrap" style="margin-top: 2rem;">
+        <h3 class="form-section-title">3. Judicial Assignment & Verification</h3>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="label" for="assignedJudgeId">Assign Presiding Judge / Bench</label>
+          <select id="assignedJudgeId" name="assignedJudgeId" class="select">
+            <option value="">-- Assign Bench (Optional upon initial filing) --</option>
+            {judges.map(j => (
+              <option value={j.id}>{j.full_name} ({j.courtroom || 'Courtroom'})</option>
+            ))}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="filingDocument">Initial Petition Document Upload</label>
+          <input type="file" id="filingDocument" class="input" style="padding: 5px 8px;" />
+          <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 3px;">
+            Supports PDF, DOCX scanned copies of signed petition and affidavits.
+          </span>
+        </div>
+      </div>
+
+      <div class="form-actions" style="margin-top: 2.5rem;">
+        <button type="submit" id="submit-btn" class="btn btn-primary" style="padding: 10px 24px; font-size: 1rem;">
+          Register Case & Generate CIN
+        </button>
+        <a href="/cases" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<script is:inline>
+  function updateCinPreview() {
+    const state = document.getElementById('stateCode')?.value || 'DL';
+    const court = document.getElementById('courtCode')?.value || 'HC';
+    const caseType = document.getElementById('caseType')?.value || 'CIVIL';
+    const filingDate = document.getElementById('filingDate')?.value || '2026-01-01';
+    const year = filingDate.split('-')[0] || '2026';
+
+    const map = {
+      CIVIL: 'CIV',
+      CRIMINAL: 'CRM',
+      WRIT_PETITION: 'WPT',
+      APPEAL: 'APP',
+      COMMERCIAL: 'COM',
+      FAMILY: 'FAM',
+    };
+
+    const typeCode = map[caseType] || 'GEN';
+    const previewEl = document.getElementById('cin-preview');
+    if (previewEl) {
+      previewEl.innerText = `${state}-${court}-${typeCode}-${year}-XXXX`;
+    }
+  }
+
+  document.getElementById('case-reg-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('error-alert');
+    const submitBtn = document.getElementById('submit-btn');
+    errorBox.style.display = 'none';
+
+    const payload = {
+      stateCode: document.getElementById('stateCode').value,
+      courtCode: document.getElementById('courtCode').value,
+      caseType: document.getElementById('caseType').value,
+      courtName: document.getElementById('courtName').value,
+      filingDate: document.getElementById('filingDate').value,
+      category: document.getElementById('category').value,
+      title: document.getElementById('title').value,
+      description: document.getElementById('description').value,
+      petitionerName: document.getElementById('petitionerName').value,
+      petitionerContact: document.getElementById('petitionerContact').value,
+      petitionerAddress: document.getElementById('petitionerAddress').value,
+      respondentName: document.getElementById('respondentName').value,
+      respondentContact: document.getElementById('respondentContact').value,
+      respondentAddress: document.getElementById('respondentAddress').value,
+      petitionerLawyerId: document.getElementById('petitionerLawyerId').value || null,
+      respondentLawyerId: document.getElementById('respondentLawyerId').value || null,
+      assignedJudgeId: document.getElementById('assignedJudgeId').value || null,
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Registering & Generating CIN...';
+
+    try {
+      const res = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to register case');
+      }
+
+      alert(`Case successfully registered!\nAllocated CIN: ${data.case.cin}`);
+      window.location.href = `/cases/${data.case.cin}`;
+    } catch (err) {
+      errorBox.innerText = err.message;
+      errorBox.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Register Case & Generate CIN';
+    }
+  });
+</script>
+
+<style>
+  .main-content {
+    padding: 2.5rem 0;
+    max-width: 960px;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .form-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+
+  .page-desc {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .cin-banner {
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+    border: 1px dashed var(--border-interactive);
+  }
+
+  .cin-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .cin-banner-label {
+    font-weight: 600;
+    font-size: 0.9375rem;
+  }
+
+  .cin-preview-tag {
+    font-family: var(--font-mono);
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e40af;
+    background: #eff6ff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #bfdbfe;
+  }
+
+  .cin-banner-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .registration-card {
+    background: #ffffff;
+    padding: 2rem;
+  }
+
+  .section-title-wrap {
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .form-section-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+  }
+
+  .form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+
+  .parties-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .party-box {
+    padding: 1.25rem;
+    border-radius: 8px;
+  }
+
+  .party-heading {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.35rem;
+  }
+
+  .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .alert-box {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .alert-error {
+    background-color: var(--status-urgent-bg);
+    color: var(--status-urgent-text);
+    border: 1px solid var(--status-urgent-border);
+  }
+
+  @media (max-width: 800px) {
+    .form-grid-3, .form-grid-2, .parties-container {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

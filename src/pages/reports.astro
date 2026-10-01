@@ -1,0 +1,491 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import { getCurrentUser } from '../lib/auth';
+import {
+  getDisposalRateReport,
+  getPendencyReport,
+  getAdjournmentReport,
+  getJudgeWorkloadReport,
+} from '../lib/services/reportService';
+
+const user = getCurrentUser(Astro.request);
+// Only Admin, Judge, Clerk have access to reports
+if (!user || !['ADMIN', 'JUDGE', 'CLERK'].includes(user.role)) {
+  return Astro.redirect('/login');
+}
+
+const disposal = getDisposalRateReport();
+const pendency = getPendencyReport();
+const adjournments = getAdjournmentReport();
+const judgeWorkloads = getJudgeWorkloadReport();
+---
+
+<BaseLayout title="Administrative Reports & Court Analytics — JIS">
+  <div class="no-print">
+    <Navbar />
+  </div>
+
+  <main class="container-wide main-content">
+    <div class="breadcrumbs no-print">
+      <a href="/">Home</a> &rsaquo; <span>Administrative Reports</span>
+    </div>
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Court Analytics & Administrative Reports</h1>
+        <p class="page-desc">Official case disposal metrics, pendency aging, adjournment audits, and judicial workload distribution.</p>
+      </div>
+
+      <div class="header-actions no-print">
+        <button class="btn btn-primary btn-sm" onclick="window.print()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          Print Report (PDF)
+        </button>
+      </div>
+    </div>
+
+    <!-- 1. Key Metrics Summary Grid -->
+    <div class="metrics-grid">
+      <div class="metric-card card">
+        <span class="metric-label">Clearance / Disposal Rate</span>
+        <div class="metric-val">{disposal.clearanceRatePct}%</div>
+        <div class="metric-sub">{disposal.totalDisposed} Disposed of {disposal.totalRegistered} Registered</div>
+      </div>
+
+      <div class="metric-card card">
+        <span class="metric-label">Active Pending Matters</span>
+        <div class="metric-val">{pendency.totalPending}</div>
+        <div class="metric-sub">{pendency.over1Year} Matters Over 1 Year Old</div>
+      </div>
+
+      <div class="metric-card card">
+        <span class="metric-label">Total Adjournments</span>
+        <div class="metric-val">{adjournments.totalAdjournments}</div>
+        <div class="metric-sub">Average {adjournments.avgAdjournmentsPerCase} Adjournments / Case</div>
+      </div>
+
+      <div class="metric-card card">
+        <span class="metric-label">Presiding Judges</span>
+        <div class="metric-val">{judgeWorkloads.length}</div>
+        <div class="metric-sub">Active Court Benches</div>
+      </div>
+    </div>
+
+    <!-- Report Sections -->
+    <div class="reports-layout">
+      <!-- Section 1: Disposal Rate by Case Type -->
+      <section class="card report-box">
+        <div class="report-box-header">
+          <h2 class="report-title">1. Case Disposal Rate by Category</h2>
+          <span class="badge badge-registered">Disposal Index</span>
+        </div>
+        <p class="report-desc">Analysis of case filings versus disposals across all statutory heads.</p>
+
+        <div class="table-wrapper" style="margin-top: 1rem;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Statutory Case Type</th>
+                <th>Filings Registered</th>
+                <th>Matters Disposed</th>
+                <th>Clearance Percentage</th>
+                <th>Efficiency Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {disposal.byType.map(t => (
+                <tr>
+                  <td><strong>{t.case_type}</strong></td>
+                  <td>{t.registered}</td>
+                  <td>{t.disposed}</td>
+                  <td>
+                    <div class="pct-bar-wrap">
+                      <div class="pct-bar" style={`width: ${Math.min(t.rate, 100)}%;`}></div>
+                      <span class="pct-text">{t.rate}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class:list={['badge', t.rate >= 50 ? 'badge-registered' : 'badge-adjourned']}>
+                      {t.rate >= 50 ? 'High Clearance' : 'Moderate'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section 2: Case Pendency Aging Buckets -->
+      <section class="card report-box" style="margin-top: 2rem;">
+        <div class="report-box-header">
+          <h2 class="report-title">2. Case Pendency Aging Analysis</h2>
+          <span class="badge badge-urgent">NJDG Aging Standard</span>
+        </div>
+        <p class="report-desc">Duration of time active matters have remained undecided on court records.</p>
+
+        <div class="aging-buckets-grid">
+          <div class="bucket-card">
+            <div class="bucket-title">&lt; 3 Months (Fresh)</div>
+            <div class="bucket-num">{pendency.under3Months}</div>
+            <div class="bucket-sub">Normal Pre-Trial / Pleadings</div>
+          </div>
+
+          <div class="bucket-card">
+            <div class="bucket-title">3 to 6 Months</div>
+            <div class="bucket-num">{pendency.between3And6Months}</div>
+            <div class="bucket-sub">Evidence Stage</div>
+          </div>
+
+          <div class="bucket-card">
+            <div class="bucket-title">6 to 12 Months</div>
+            <div class="bucket-num">{pendency.between6And12Months}</div>
+            <div class="bucket-sub">Final Arguments</div>
+          </div>
+
+          <div class="bucket-card bucket-critical">
+            <div class="bucket-title">&gt; 1 Year (Delayed)</div>
+            <div class="bucket-num" style="color: #991b1b;">{pendency.over1Year}</div>
+            <div class="bucket-sub">Requires Expedited Bench Review</div>
+          </div>
+        </div>
+
+        {pendency.criticalCases.length > 0 && (
+          <div style="margin-top: 1.5rem;">
+            <h4 class="sub-title">Delayed Matters Flagged for Priority Disposal</h4>
+            <div class="table-wrapper" style="margin-top: 0.5rem;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>CIN</th>
+                    <th>Matter Title</th>
+                    <th>Filing Date</th>
+                    <th>Days Pending</th>
+                    <th>Assigned Bench</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendency.criticalCases.map(c => (
+                    <tr>
+                      <td><a href={`/cases/${c.cin}`} class="cin-tag">{c.cin}</a></td>
+                      <td><strong>{c.title}</strong></td>
+                      <td>{c.filing_date}</td>
+                      <td>
+                        <span class="days-pill">{c.days_pending} Days</span>
+                      </td>
+                      <td>{c.judge_name}</td>
+                      <td>
+                        <a href={`/cases/${c.cin}`} class="btn btn-outline btn-sm">Inspect Dossier</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <!-- Section 3: Adjournment Analysis & Frequent Reasons -->
+      <section class="card report-box" style="margin-top: 2rem;">
+        <div class="report-box-header">
+          <h2 class="report-title">3. Adjournment Frequency & Cause Audit</h2>
+          <span class="badge badge-adjourned">Delay Audit</span>
+        </div>
+        <p class="report-desc">Analysis of procedural delays, recurring grounds for adjournments, and flagged matters.</p>
+
+        <div class="adjournment-two-col">
+          <div>
+            <h4 class="sub-title">Most Common Adjournment Reasons</h4>
+            <div class="reasons-list">
+              {adjournments.topReasons.map(r => (
+                <div class="reason-row card-cream">
+                  <span class="reason-text">{r.reason}</span>
+                  <span class="reason-count">{r.count} Times</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 class="sub-title">Matters with High Adjournment Tallies (&#8805; 2)</h4>
+            <div class="table-wrapper">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>CIN</th>
+                    <th>Matter Title</th>
+                    <th>Adjournments</th>
+                    <th>Assigned Judge</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adjournments.flaggedCases.map(fc => (
+                    <tr>
+                      <td><a href={`/cases/${fc.cin}`} class="cin-tag">{fc.cin}</a></td>
+                      <td style="font-size: 0.8125rem;">{fc.title}</td>
+                      <td>
+                        <span class="badge badge-urgent">{fc.adjournment_count} Logged</span>
+                      </td>
+                      <td style="font-size: 0.8125rem;">{fc.judge_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Judge Workload Distribution -->
+      <section class="card report-box" style="margin-top: 2rem;">
+        <div class="report-box-header">
+          <h2 class="report-title">4. Judicial Bench Workload Distribution</h2>
+          <span class="badge badge-hearing">Bench Allocation</span>
+        </div>
+        <p class="report-desc">Caseload distribution and disposal performance across presiding High Court benches.</p>
+
+        <div class="table-wrapper" style="margin-top: 1rem;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Hon'ble Judge</th>
+                <th>Courtroom</th>
+                <th>Active Assigned Matters</th>
+                <th>Hearings Conducted/Listed</th>
+                <th>Cases Disposed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {judgeWorkloads.map(jw => (
+                <tr>
+                  <td><strong>{jw.judgeName}</strong></td>
+                  <td>{jw.courtroom}</td>
+                  <td>
+                    <span style="font-weight: 700; color: #1e40af;">{jw.activeCases} Matters</span>
+                  </td>
+                  <td>{jw.hearingsScheduled} Listings</td>
+                  <td>
+                    <span style="font-weight: 700; color: #065f46;">{jw.casesDisposed} Disposed</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="no-print">
+    <Footer />
+  </div>
+</BaseLayout>
+
+<style>
+  .main-content {
+    padding: 2.5rem 0 4rem;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+  }
+
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+
+  .page-desc {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .metric-card {
+    background: #ffffff;
+    padding: 1.5rem;
+  }
+
+  .metric-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+
+  .metric-val {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--text-charcoal);
+    margin: 0.25rem 0;
+  }
+
+  .metric-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .report-box {
+    background: #ffffff;
+    padding: 2rem;
+  }
+
+  .report-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .report-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .report-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .sub-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .pct-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 150px;
+  }
+
+  .pct-bar {
+    height: 8px;
+    background: #10b981;
+    border-radius: 4px;
+  }
+
+  .pct-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .aging-buckets-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+
+  .bucket-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 1.25rem;
+    text-align: center;
+  }
+
+  .bucket-critical {
+    background: var(--status-urgent-bg);
+    border-color: var(--status-urgent-border);
+  }
+
+  .bucket-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-charcoal);
+  }
+
+  .bucket-num {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 0.25rem 0;
+  }
+
+  .bucket-sub {
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+  }
+
+  .days-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    background: var(--status-urgent-bg);
+    color: var(--status-urgent-text);
+    border-radius: 4px;
+    border: 1px solid var(--status-urgent-border);
+  }
+
+  .adjournment-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1.25rem;
+  }
+
+  .reasons-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .reason-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+  }
+
+  .reason-text {
+    font-size: 0.875rem;
+  }
+
+  .reason-count {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #92400e;
+  }
+
+  @media (max-width: 900px) {
+    .metrics-grid, .aging-buckets-grid, .adjournment-two-col {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    body {
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
+  }
+</style>

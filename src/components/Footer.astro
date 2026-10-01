@@ -1,0 +1,116 @@
+<footer class="footer">
+  <div class="container-wide footer-container">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4 class="footer-title">Judiciary Information System</h4>
+        <p class="footer-desc">
+          Official case-management, cause list scheduling, order dissemination, and judicial record-keeping portal. Built according to IEEE Std 830-1998, e-Courts Mission Mode, and NJDG Standards.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h5 class="footer-heading">Access Portals</h5>
+        <ul class="footer-list">
+          <li><a href="/cases">Search Case Records</a></li>
+          <li><a href="/causelist">Daily Cause Lists</a></li>
+          <li><a href="/hearings">Hearing Calendar</a></li>
+          <li><a href="/login">Officer / Advocate Login</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5 class="footer-heading">Standards & Compliance</h5>
+        <ul class="footer-list">
+          <li>e-Courts Mission Mode Project</li>
+          <li>National Judicial Data Grid (NJDG)</li>
+          <li>Role-Based Access Control (RBAC)</li>
+          <li>Immutable Audit Log Verification</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; {new Date().getFullYear()} Judiciary Information System (JIS) — Government of National Territory. All Rights Reserved.</p>
+      <p class="footer-disclaimer">Confidential court records are protected under judicial data protection guidelines.</p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    background-color: var(--bg-cream);
+    border-top: 1px solid var(--border-light);
+    margin-top: 4rem;
+    padding: 3rem 0 2rem;
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 3rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .footer-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+
+  .footer-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 480px;
+  }
+
+  .footer-heading {
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.75rem;
+    color: var(--text-charcoal);
+  }
+
+  .footer-list {
+    list-style: none;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .footer-list a {
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+
+  .footer-list a:hover {
+    color: var(--text-charcoal);
+    text-decoration: underline;
+  }
+
+  .footer-bottom {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 768px) {
+    .footer-grid {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+    .footer-bottom {
+      flex-direction: column;
+      gap: 0.5rem;
+      text-align: center;
+    }
+  }
+</style>

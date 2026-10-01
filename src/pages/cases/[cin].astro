@@ -1,0 +1,1172 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import StatusBadge from '../../components/StatusBadge.astro';
+import { getCurrentUser } from '../../lib/auth';
+import { getCaseByCin } from '../../lib/services/caseService';
+import { getCaseHearings, getCaseAdjournments } from '../../lib/services/hearingService';
+import { getCaseOrders, getCaseDocuments } from '../../lib/services/orderService';
+import { getCaseAuditTrail } from '../../lib/services/auditService';
+import { getJudges } from '../../lib/services/userService';
+
+const user = getCurrentUser(Astro.request);
+const { cin } = Astro.params;
+
+if (!cin) {
+  return Astro.redirect('/cases');
+}
+
+const courtCase = getCaseByCin(cin);
+if (!courtCase) {
+  return Astro.redirect('/cases');
+}
+
+// RBAC restriction check
+if (user) {
+  if (user.role === 'LAWYER' && courtCase.petitioner_lawyer_id !== user.id && courtCase.respondent_lawyer_id !== user.id) {
+    return Astro.redirect('/cases?error=unauthorized');
+  }
+}
+
+const hearings = getCaseHearings(courtCase.id);
+const adjournments = getCaseAdjournments(courtCase.id);
+const orders = getCaseOrders(courtCase.id);
+const documents = getCaseDocuments(courtCase.id);
+const auditTrail = (user && ['ADMIN', 'JUDGE', 'CLERK'].includes(user.role))
+  ? getCaseAuditTrail(courtCase.id)
+  : [];
+const judges = getJudges();
+
+const isClosed = ['DISPOSED', 'SETTLED', 'WITHDRAWN', 'CLOSED'].includes(courtCase.status);
+const canSchedule = user && ['JUDGE', 'CLERK', 'ADMIN'].includes(user.role) && !isClosed;
+const canAdjourn = user && ['JUDGE', 'CLERK', 'ADMIN'].includes(user.role) && !isClosed && hearings.some(h => h.status === 'SCHEDULED');
+const canRecordOrder = user && ['JUDGE', 'ADMIN'].includes(user.role) && !isClosed;
+const canClose = user && ['JUDGE', 'ADMIN'].includes(user.role) && !isClosed;
+---
+
+<BaseLayout title={`Case Dossier ${courtCase.cin} — JIS`}>
+  <Navbar />
+
+  <main class="container-wide main-content">
+    <div class="breadcrumbs">
+      <a href="/">Home</a> &rsaquo; <a href="/cases">Cases</a> &rsaquo; <span>{courtCase.cin}</span>
+    </div>
+
+    <!-- Case Dossier Header -->
+    <div class="card case-header-card">
+      <div class="case-header-top">
+        <div class="header-left">
+          <div class="cin-status-row">
+            <span class="cin-tag cin-large">{courtCase.cin}</span>
+            <StatusBadge status={courtCase.status} />
+            <span class="type-pill">{courtCase.case_type}</span>
+            {courtCase.adjournment_count > 0 && (
+              <span class:list={['adjournment-count-pill', { 'flagged': courtCase.adjournment_count >= 2 }]}>
+                {courtCase.adjournment_count} Adjournments Logged
+              </span>
+            )}
+          </div>
+          <h1 class="case-dossier-title">{courtCase.title}</h1>
+          <p class="case-court-info">
+            <strong>{courtCase.court_name}</strong> &bull; Filed on {courtCase.filing_date} &bull; Classification: {courtCase.category}
+          </p>
+        </div>
+
+        <div class="header-actions">
+          {canSchedule && (
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-schedule')">
+              Schedule Hearing
+            </button>
+          )}
+
+          {canAdjourn && (
+            <button class="btn btn-outline btn-sm" onclick="openModal('modal-adjourn')">
+              Record Adjournment
+            </button>
+          )}
+
+          {canRecordOrder && (
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-order')">
+              Pass Order / Judgment
+            </button>
+          )}
+
+          {canClose && (
+            <button class="btn btn-outline btn-sm" style="color: #991b1b; border-color: #fca5a5;" onclick="openModal('modal-close')">
+              Close Case
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isClosed && (
+        <div class="closed-banner">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <div>
+            <strong>CASE IS CLOSED & DISPOSED:</strong> {courtCase.closure_reason || 'Final order executed.'}
+            <div style="font-size: 0.75rem; margin-top: 2px;">
+              Closed on: {courtCase.closed_at || 'Recorded Date'}. Record is locked against further routine modifications under judicial record retention rules.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <!-- Case Details & History Tabs -->
+    <div class="dossier-grid">
+      <!-- Left Column: Case Overview & Parties -->
+      <div class="dossier-left">
+        <div class="card info-card">
+          <h3 class="card-section-title">Litigants & Legal Representation</h3>
+          
+          <div class="parties-split">
+            <!-- Petitioner -->
+            <div class="party-detail">
+              <span class="party-role-badge petitioner-badge">Petitioner</span>
+              <div class="party-main-name">{courtCase.petitioner_name}</div>
+              <div class="party-meta">
+                <div><strong>Contact:</strong> {courtCase.petitioner_contact || 'On Registry Record'}</div>
+                <div><strong>Address:</strong> {courtCase.petitioner_address || 'Verified Address on File'}</div>
+                <div class="counsel-box">
+                  <span class="counsel-label">Counsel:</span> 
+                  {courtCase.petitioner_lawyer_name ? (
+                    <strong>{courtCase.petitioner_lawyer_name}</strong>
+                  ) : (
+                    <span style="color: var(--text-muted);">Self-Represented / Party in Person</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <!-- Respondent -->
+            <div class="party-detail">
+              <span class="party-role-badge respondent-badge">Respondent</span>
+              <div class="party-main-name">{courtCase.respondent_name}</div>
+              <div class="party-meta">
+                <div><strong>Contact:</strong> {courtCase.respondent_contact || 'On Registry Record'}</div>
+                <div><strong>Address:</strong> {courtCase.respondent_address || 'Official Office Address'}</div>
+                <div class="counsel-box">
+                  <span class="counsel-label">Counsel:</span>
+                  {courtCase.respondent_lawyer_name ? (
+                    <strong>{courtCase.respondent_lawyer_name}</strong>
+                  ) : (
+                    <span style="color: var(--text-muted);">Standing Counsel / Unassigned</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="judicial-assignment-block">
+            <h4 class="sub-heading">Bench Assignment</h4>
+            <div class="judge-display">
+              <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+                <circle cx="12" cy="7" r="4"/>
+                <path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>
+              </svg>
+              <div>
+                <strong>{courtCase.judge_name || 'Designated Vacation / Regular Bench'}</strong>
+                <div style="font-size: 0.8125rem; color: var(--text-secondary);">
+                  {courtCase.judge_courtroom || 'Assigned Courtroom'} &bull; High Court of Judicature
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {courtCase.description && (
+            <div class="case-desc-block">
+              <h4 class="sub-heading">Matter Description & Prayer</h4>
+              <p class="desc-text">{courtCase.description}</p>
+            </div>
+          )}
+        </div>
+
+        <!-- Orders & Final Judgments -->
+        <div class="card info-card" style="margin-top: 1.5rem;">
+          <div class="card-title-row">
+            <h3 class="card-section-title">Judicial Orders & Decrees ({orders.length})</h3>
+          </div>
+
+          {orders.length > 0 ? (
+            <div class="orders-list">
+              {orders.map(o => (
+                <div class="order-item card-cream">
+                  <div class="order-header">
+                    <div>
+                      <span class:list={['badge', o.is_final ? 'badge-urgent' : 'badge-hearing']}>
+                        {o.order_type.replace(/_/g, ' ')}
+                      </span>
+                      <strong style="margin-left: 0.5rem;">{o.title}</strong>
+                    </div>
+                    <span class="order-date">{o.order_date}</span>
+                  </div>
+
+                  <p class="order-summary">{o.summary}</p>
+
+                  <div class="order-details-box">
+                    <pre class="order-full-text">{o.full_text}</pre>
+                  </div>
+
+                  <div class="order-footer">
+                    <span>Passed by: <strong>{o.passed_by_name || 'Bench'}</strong></span>
+                    <button class="btn btn-outline btn-sm" onclick={`alert('Downloading certified copy of: ${o.title}')`}>
+                      Download Signed Copy
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="empty-state">
+              No orders or judgments recorded against this case yet.
+            </div>
+          )}
+        </div>
+
+        <!-- Documents Repository -->
+        <div class="card info-card" style="margin-top: 1.5rem;">
+          <h3 class="card-section-title">Attached Pleadings & Documents ({documents.length})</h3>
+          
+          {documents.length > 0 ? (
+            <div class="table-wrapper" style="margin-top: 1rem;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Document Title</th>
+                    <th>Type</th>
+                    <th>Uploaded By</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.map(d => (
+                    <tr>
+                      <td>
+                        <strong>{d.title}</strong>
+                      </td>
+                      <td>
+                        <span class="type-tag">{d.document_type}</span>
+                      </td>
+                      <td>{d.uploaded_by_name || 'Filing Registry'}</td>
+                      <td>{d.uploaded_at.split(' ')[0]}</td>
+                      <td>
+                        <button class="btn btn-outline btn-sm" onclick={`alert('Accessing document: ${d.title}')`}>
+                          Download
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div class="empty-state">
+              No additional documents filed yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <!-- Right Column: Hearings, Adjournments, and Audit Trail -->
+      <div class="dossier-right">
+        <!-- Hearings Timeline -->
+        <div class="card info-card">
+          <h3 class="card-section-title">Hearing Proceedings</h3>
+
+          {hearings.length > 0 ? (
+            <div class="timeline">
+              {hearings.map(h => (
+                <div class="timeline-item">
+                  <div class="timeline-marker"></div>
+                  <div class="timeline-content">
+                    <div class="timeline-header">
+                      <strong>{h.hearing_date}</strong>
+                      <StatusBadge status={h.status} />
+                    </div>
+                    <div class="timeline-courtroom">{h.courtroom}</div>
+                    <div class="timeline-purpose"><strong>Purpose:</strong> {h.purpose}</div>
+                    {h.proceedings_notes && (
+                      <div class="proceedings-notes">
+                        <strong>Proceedings:</strong> {h.proceedings_notes}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="empty-state">No hearings listed yet.</div>
+          )}
+        </div>
+
+        <!-- Adjournment History & Running Tally -->
+        <div class="card info-card" style="margin-top: 1.5rem;">
+          <div class="card-title-row">
+            <h3 class="card-section-title">Adjournments Record</h3>
+            <span class="badge badge-adjourned">{adjournments.length} Total</span>
+          </div>
+
+          {adjournments.length > 0 ? (
+            <div class="adjournments-timeline">
+              {adjournments.map(a => (
+                <div class="adj-item card-cream">
+                  <div class="adj-header">
+                    <strong style="color: #92400e;">Adjournment #{a.adjournment_number}</strong>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">{a.created_at.split(' ')[0]}</span>
+                  </div>
+                  <div class="adj-reason">
+                    <strong>Stated Reason:</strong> {a.reason}
+                  </div>
+                  <div class="adj-rescheduled">
+                    <strong>Rescheduled Hearing:</strong> {a.new_hearing_date}
+                  </div>
+                  <div class="adj-footer">
+                    Granted by: {a.granted_by_name || 'Hon\'ble Presiding Judge'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="empty-state">No adjournments recorded. Case proceeding without delay.</div>
+          )}
+        </div>
+
+        <!-- Immutable Audit Trail -->
+        {auditTrail.length > 0 && (
+          <div class="card info-card" style="margin-top: 1.5rem;">
+            <div class="card-title-row">
+              <h3 class="card-section-title">Immutable Audit Trail</h3>
+              <span class="badge badge-registered">Tamper-Evident</span>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+              Cryptographically verified historical ledger of all filing, scheduling, and judgment events.
+            </p>
+
+            <div class="audit-stream">
+              {auditTrail.map(entry => (
+                <div class="audit-row">
+                  <div class="audit-action">{entry.action}</div>
+                  <div class="audit-details">{entry.details}</div>
+                  <div class="audit-meta">
+                    {entry.user_name || 'System'} ({entry.user_role || 'SERVER'}) &bull; {entry.created_at} &bull; IP: {entry.ip_address}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Modals for Actions -->
+    <!-- 1. Schedule Hearing Modal -->
+    <div id="modal-schedule" class="modal-overlay" style="display: none;">
+      <div class="modal-box card">
+        <div class="modal-header">
+          <h3 class="modal-title">Schedule New Hearing</h3>
+          <button class="close-btn" onclick="closeModal('modal-schedule')">&times;</button>
+        </div>
+        <form id="form-schedule" onsubmit="handleScheduleHearing(event)">
+          <input type="hidden" name="caseId" value={courtCase.id} />
+          
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Hearing Date & Time *</label>
+            <input type="text" name="hearingDate" class="input" placeholder="YYYY-MM-DD HH:MM (e.g. 2026-10-15 10:30)" required />
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">The system will automatically verify courtroom & judge availability.</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Courtroom *</label>
+            <select name="courtroom" class="select" required>
+              <option value="Courtroom 1">Courtroom 1</option>
+              <option value="Courtroom 2">Courtroom 2</option>
+              <option value="Courtroom 3">Courtroom 3</option>
+              <option value="Special Bench 4">Special Bench 4</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Presiding Judge</label>
+            <select name="judgeId" class="select">
+              <option value={courtCase.assigned_judge_id || ''}>
+                {courtCase.judge_name || '-- Default Assigned Bench --'}
+              </option>
+              {judges.map(j => (
+                <option value={j.id}>{j.full_name} ({j.courtroom})</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label class="label">Purpose of Hearing *</label>
+            <input type="text" name="purpose" class="input" placeholder="e.g. Evidence Recording / Framing of Issues / Arguments" required />
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Confirm & Schedule</button>
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-schedule')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 2. Record Adjournment Modal -->
+    <div id="modal-adjourn" class="modal-overlay" style="display: none;">
+      <div class="modal-box card">
+        <div class="modal-header">
+          <h3 class="modal-title">Record Case Adjournment</h3>
+          <button class="close-btn" onclick="closeModal('modal-adjourn')">&times;</button>
+        </div>
+        <form id="form-adjourn" onsubmit="handleRecordAdjournment(event)">
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Select Hearing to Adjourn *</label>
+            <select name="hearingId" class="select" required>
+              {hearings.filter(h => h.status === 'SCHEDULED').map(h => (
+                <option value={h.id}>{h.hearing_date} &bull; {h.purpose}</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Mandatory Reason for Adjournment *</label>
+            <input type="text" name="reason" class="input" placeholder="e.g. Counsel engaged in Constitutional Bench / Awaiting FSL report" required />
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Reason will be permanently recorded in case history and audit log.</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Rescheduled Hearing Date & Time *</label>
+            <input type="text" name="newHearingDate" class="input" placeholder="YYYY-MM-DD HH:MM (e.g. 2026-11-05 11:00)" required />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label class="label">Courtroom for Rescheduled Hearing *</label>
+            <select name="courtroom" class="select" required>
+              <option value="Courtroom 1">Courtroom 1</option>
+              <option value="Courtroom 2">Courtroom 2</option>
+              <option value="Courtroom 3">Courtroom 3</option>
+            </select>
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Log Adjournment & Reschedule</button>
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-adjourn')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 3. Record Order / Judgment Modal -->
+    <div id="modal-order" class="modal-overlay" style="display: none;">
+      <div class="modal-box card" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Record Order or Final Judgment</h3>
+          <button class="close-btn" onclick="closeModal('modal-order')">&times;</button>
+        </div>
+        <form id="form-order" onsubmit="handleRecordOrder(event)">
+          <input type="hidden" name="caseId" value={courtCase.id} />
+
+          <div class="form-grid-2" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label class="label">Order Nature *</label>
+              <select name="orderType" id="orderTypeSelect" class="select" required onchange="toggleFinalCheckbox()">
+                <option value="INTERIM_ORDER">Interim Order</option>
+                <option value="BAIL_ORDER">Bail Order</option>
+                <option value="FINAL_JUDGMENT">Final Judgment</option>
+                <option value="DISMISSAL_ORDER">Dismissal Order</option>
+                <option value="DECREE">Decree</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Order Date *</label>
+              <input type="date" name="orderDate" class="input" value={new Date().toISOString().split('T')[0]} required />
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Order / Judgment Title *</label>
+            <input type="text" name="title" class="input" placeholder="e.g. Order on Application for Injunction" required />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Order Summary / Operative Part *</label>
+            <textarea name="summary" class="textarea" rows="2" placeholder="Brief operative direction..." required></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Full Judicial Reasoning & Dictation *</label>
+            <textarea name="fullText" class="textarea" rows="4" placeholder="Full order dictation / judgment text..." required></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="isFinalCheck" name="isFinal" />
+            <label for="isFinalCheck" style="font-size: 0.875rem; font-weight: 600;">
+              This is a Final Judgment (Triggers Case Disposal & Closure Workflow)
+            </label>
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Sign & Pronounce Order</button>
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-order')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 4. Close Case Modal -->
+    <div id="modal-close" class="modal-overlay" style="display: none;">
+      <div class="modal-box card">
+        <div class="modal-header">
+          <h3 class="modal-title" style="color: #991b1b;">Confirm Case Closure</h3>
+          <button class="close-btn" onclick="closeModal('modal-close')">&times;</button>
+        </div>
+        <form id="form-close" onsubmit="handleCloseCase(event)">
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="label">Closure Disposal Category *</label>
+            <select name="status" class="select" required>
+              <option value="DISPOSED">Disposed (Adjudicated)</option>
+              <option value="SETTLED">Settled (Compromised/Lok Adalat)</option>
+              <option value="WITHDRAWN">Withdrawn by Petitioner</option>
+              <option value="CLOSED">Closed (Administrative)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label class="label">Stated Reason for Closure *</label>
+            <textarea name="closureReason" class="textarea" rows="3" placeholder="Provide detailed legal justification for case closure..." required></textarea>
+          </div>
+
+          <p style="font-size: 0.8125rem; color: #991b1b; margin-bottom: 1.5rem;">
+            <strong>Warning:</strong> Closing a case locks the record. Only court administrators can modify closed records, and all attempts will be recorded in the security audit trail.
+          </p>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary" style="background-color: #991b1b; border-color: #991b1b;">
+              Execute Case Closure
+            </button>
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-close')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<script is:inline>
+  function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+
+  function toggleFinalCheckbox() {
+    const val = document.getElementById('orderTypeSelect').value;
+    const check = document.getElementById('isFinalCheck');
+    if (['FINAL_JUDGMENT', 'DISMISSAL_ORDER', 'DECREE'].includes(val)) {
+      check.checked = true;
+    }
+  }
+
+  async function handleScheduleHearing(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const payload = Object.fromEntries(formData);
+
+    try {
+      const res = await fetch('/api/hearings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to schedule hearing');
+      }
+
+      alert('Hearing scheduled successfully!');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function handleRecordAdjournment(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const hearingId = formData.get('hearingId');
+    const payload = {
+      reason: formData.get('reason'),
+      newHearingDate: formData.get('newHearingDate'),
+      courtroom: formData.get('courtroom'),
+    };
+
+    try {
+      const res = await fetch(`/api/hearings/${hearingId}/adjourn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to record adjournment');
+      }
+
+      alert(`Adjournment #${data.adjournment.adjournment_number} logged and case rescheduled!`);
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function handleRecordOrder(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const payload = {
+      caseId: formData.get('caseId'),
+      orderType: formData.get('orderType'),
+      title: formData.get('title'),
+      orderDate: formData.get('orderDate'),
+      summary: formData.get('summary'),
+      fullText: formData.get('fullText'),
+      isFinal: formData.get('isFinal') === 'on',
+    };
+
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to record order');
+      }
+
+      alert('Judicial order successfully signed and published!');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function handleCloseCase(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const cin = window.location.pathname.split('/').pop();
+    const payload = {
+      status: formData.get('status'),
+      closureReason: formData.get('closureReason'),
+    };
+
+    try {
+      const res = await fetch(`/api/cases/${cin}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to close case');
+      }
+
+      alert('Case closed and disposed successfully.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+</script>
+
+<style>
+  .main-content {
+    padding: 2.5rem 0;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+  }
+
+  .case-header-card {
+    background: #ffffff;
+    margin-bottom: 2rem;
+    padding: 2rem;
+  }
+
+  .case-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+
+  .cin-status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+
+  .cin-large {
+    font-size: 1.125rem;
+    padding: 4px 10px;
+  }
+
+  .type-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--bg-cream);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+  }
+
+  .adjournment-count-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--status-adjourned-bg);
+    color: var(--status-adjourned-text);
+    border: 1px solid var(--status-adjourned-border);
+  }
+
+  .adjournment-count-pill.flagged {
+    background: var(--status-urgent-bg);
+    color: var(--status-urgent-text);
+    border-color: var(--status-urgent-border);
+  }
+
+  .case-dossier-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 0.5rem;
+  }
+
+  .case-court-info {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .closed-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: var(--status-closed-bg);
+    color: var(--status-closed-text);
+    border: 1px solid var(--status-closed-border);
+    padding: 0.875rem 1.25rem;
+    border-radius: 6px;
+    margin-top: 1.5rem;
+    font-size: 0.875rem;
+  }
+
+  .dossier-grid {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 2rem;
+  }
+
+  .info-card {
+    background: #ffffff;
+    padding: 1.75rem;
+  }
+
+  .card-section-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+  }
+
+  .card-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .card-title-row .card-section-title {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .parties-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .party-detail {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .party-role-badge {
+    display: inline-block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .petitioner-badge {
+    background: #eff6ff;
+    color: #1e40af;
+  }
+
+  .respondent-badge {
+    background: #fdf2f8;
+    color: #9d174d;
+  }
+
+  .party-main-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .party-meta {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .counsel-box {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border-light);
+    color: var(--text-charcoal);
+  }
+
+  .counsel-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .sub-heading {
+    font-size: 0.875rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .judge-display {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg-cream);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+  }
+
+  .case-desc-block {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .desc-text {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+
+  /* Orders Styling */
+  .orders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .order-item {
+    padding: 1.25rem;
+    border-radius: 8px;
+  }
+
+  .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .order-date {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .order-summary {
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .order-details-box {
+    background: #ffffff;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+
+  .order-full-text {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .order-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8125rem;
+  }
+
+  /* Timeline */
+  .timeline {
+    position: relative;
+    padding-left: 1.5rem;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-light);
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .timeline-marker {
+    position: absolute;
+    left: -1.5rem;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--text-charcoal);
+    border: 2px solid #ffffff;
+  }
+
+  .timeline-content {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 0.875rem;
+  }
+
+  .timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .timeline-courtroom {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .timeline-purpose {
+    font-size: 0.8125rem;
+  }
+
+  .proceedings-notes {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border-light);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  /* Adjournments */
+  .adjournments-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .adj-item {
+    padding: 1rem;
+    border-radius: 6px;
+  }
+
+  .adj-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+  }
+
+  .adj-reason {
+    font-size: 0.8125rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .adj-rescheduled {
+    font-size: 0.8125rem;
+    color: #1e40af;
+    margin-bottom: 0.35rem;
+  }
+
+  .adj-footer {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  /* Audit Stream */
+  .audit-stream {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  .audit-row {
+    padding: 0.5rem;
+    background: var(--bg-surface);
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+  }
+
+  .audit-action {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #1e40af;
+    font-family: var(--font-mono);
+  }
+
+  .audit-details {
+    font-size: 0.8125rem;
+    margin: 2px 0;
+  }
+
+  .audit-meta {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-box {
+    width: 100%;
+    max-width: 500px;
+    background: #ffffff;
+    padding: 2rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    color: var(--text-secondary);
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+    padding-top: 1rem;
+  }
+
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 950px) {
+    .dossier-grid {
+      grid-template-columns: 1fr;
+    }
+    .case-header-top {
+      flex-direction: column;
+    }
+  }
+</style>

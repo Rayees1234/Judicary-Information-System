@@ -1,0 +1,265 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import { getCurrentUser } from '../lib/auth';
+
+const user = getCurrentUser(Astro.request);
+if (user) {
+  return Astro.redirect('/cases');
+}
+---
+
+<BaseLayout title="Sign In — Judiciary Information System (JIS)">
+  <Navbar />
+
+  <main class="login-wrapper">
+    <div class="login-card card">
+      <div class="login-header">
+        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none" class="auth-icon">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <h1 class="login-title">Secure Judicial Access</h1>
+        <p class="login-sub">Role-Based Access Control for Bench, Registry & Bar</p>
+      </div>
+
+      <div id="error-alert" class="alert-box alert-error" style="display: none;"></div>
+
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label class="label" for="username">Username or Official Email</label>
+          <input 
+            type="text" 
+            id="username" 
+            name="username" 
+            class="input" 
+            required 
+            placeholder="e.g. clerk.kumar or judge.verma" 
+            autocomplete="username"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="password">Password</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            class="input" 
+            required 
+            placeholder="Enter your secure password" 
+            autocomplete="current-password"
+          />
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+          Authenticate & Access
+        </button>
+      </form>
+
+      <!-- Fast Role Switcher for Testing & Demonstration -->
+      <div class="demo-section">
+        <div class="demo-heading">One-Click Demonstration Logins</div>
+        <p class="demo-sub">Click any role profile below to automatically populate credentials:</p>
+        
+        <div class="demo-grid">
+          <button type="button" class="demo-btn" onclick="setCredentials('admin', 'admin123')">
+            <span class="demo-role">Administrator</span>
+            <span class="demo-user">admin</span>
+          </button>
+
+          <button type="button" class="demo-btn" onclick="setCredentials('judge.verma', 'judge123')">
+            <span class="demo-role">Hon'ble Judge</span>
+            <span class="demo-user">judge.verma</span>
+          </button>
+
+          <button type="button" class="demo-btn" onclick="setCredentials('clerk.kumar', 'clerk123')">
+            <span class="demo-role">Court Registrar</span>
+            <span class="demo-user">clerk.kumar</span>
+          </button>
+
+          <button type="button" class="demo-btn" onclick="setCredentials('advocate.singh', 'lawyer123')">
+            <span class="demo-role">Senior Advocate</span>
+            <span class="demo-user">advocate.singh</span>
+          </button>
+
+          <button type="button" class="demo-btn" onclick="setCredentials('litigant.sharma', 'litigant123')">
+            <span class="demo-role">Litigant / Citizen</span>
+            <span class="demo-user">litigant.sharma</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<script is:inline>
+  function setCredentials(u, p) {
+    document.getElementById('username').value = u;
+    document.getElementById('password').value = p;
+    document.getElementById('login-form').dispatchEvent(new Event('submit', { cancelable: true }));
+  }
+
+  document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('error-alert');
+    const submitBtn = document.getElementById('submit-btn');
+    errorBox.style.display = 'none';
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Authenticating...';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      // Redirect based on role or cases
+      if (data.user.role === 'ADMIN') {
+        window.location.href = '/reports';
+      } else if (data.user.role === 'CLERK') {
+        window.location.href = '/cases';
+      } else if (data.user.role === 'JUDGE') {
+        window.location.href = '/causelist';
+      } else {
+        window.location.href = '/cases';
+      }
+    } catch (err) {
+      errorBox.innerText = err.message;
+      errorBox.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Authenticate & Access';
+    }
+  });
+</script>
+
+<style>
+  .login-wrapper {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+  }
+
+  .login-card {
+    max-width: 480px;
+    width: 100%;
+    background: #ffffff;
+    padding: 2.5rem;
+  }
+
+  .login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .auth-icon {
+    color: var(--text-charcoal);
+    margin-bottom: 0.75rem;
+  }
+
+  .login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+
+  .login-sub {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .alert-box {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .alert-error {
+    background-color: var(--status-urgent-bg);
+    color: var(--status-urgent-text);
+    border: 1px solid var(--status-urgent-border);
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .demo-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .demo-heading {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-charcoal);
+    margin-bottom: 0.25rem;
+  }
+
+  .demo-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+  }
+
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+
+  .demo-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+  }
+
+  .demo-btn:hover {
+    background: var(--bg-cream);
+    border-color: var(--border-interactive);
+  }
+
+  .demo-role {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-charcoal);
+  }
+
+  .demo-user {
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+</style>

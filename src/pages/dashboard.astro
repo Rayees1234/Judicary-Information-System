@@ -1,0 +1,431 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import StatusBadge from '../components/StatusBadge.astro';
+import { getCurrentUser } from '../lib/auth';
+import { searchCases } from '../lib/services/caseService';
+import { getUserNotifications } from '../lib/services/notificationService';
+import { getCauseList } from '../lib/services/hearingService';
+
+const user = getCurrentUser(Astro.request);
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+// Scoped cases for this user
+const { cases, total } = searchCases({ limit: 6 }, user);
+
+// Today's Cause list
+const today = new Date().toISOString().split('T')[0];
+const todayHearings = getCauseList(today);
+
+// Notifications for this user
+const notifications = getUserNotifications(user.id);
+---
+
+<BaseLayout title={`Dashboard — ${user.full_name} (${user.role}) — JIS`}>
+  <Navbar />
+
+  <main class="container-wide main-content">
+    <div class="dashboard-header">
+      <div class="user-greeting">
+        <div class="breadcrumbs">
+          <a href="/">Home</a> &rsaquo; <span>Dashboard</span>
+        </div>
+        <h1 class="page-title">Welcome, {user.full_name}</h1>
+        <p class="page-desc">
+          Logged in as <span class="badge badge-role">{user.role}</span> &bull; {user.court_name || 'Delhi High Court'}
+          {user.designation && <span> &bull; {user.designation}</span>}
+          {user.bar_registration_no && <span> &bull; Bar Reg: {user.bar_registration_no}</span>}
+        </p>
+      </div>
+
+      <div class="header-actions">
+        {['ADMIN', 'CLERK'].includes(user.role) && (
+          <a href="/cases/new" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Register Case
+          </a>
+        )}
+        {user.role === 'ADMIN' && (
+          <a href="/admin/users" class="btn btn-secondary">
+            User Management
+          </a>
+        )}
+      </div>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-num">{total}</span>
+        <span class="stat-label">Accessible Cases</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num">{todayHearings.length}</span>
+        <span class="stat-label">Today's Scheduled Hearings</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num">{notifications.filter(n => !n.is_read).length}</span>
+        <span class="stat-label">Unread Notifications</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num">{user.courtroom || 'N/A'}</span>
+        <span class="stat-label">Assigned Courtroom</span>
+      </div>
+    </div>
+
+    <!-- Quick Navigation / Role Portals -->
+    <div class="portal-grid">
+      <a href="/cases" class="portal-card">
+        <div class="portal-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
+        <div class="portal-info">
+          <h3>Case Repository</h3>
+          <p>Search, filter, and track case lifecycle & dossiers</p>
+        </div>
+      </a>
+
+      <a href="/causelist" class="portal-card">
+        <div class="portal-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+        <div class="portal-info">
+          <h3>Daily Cause List</h3>
+          <p>View daily courtroom dockets & scheduled matters</p>
+        </div>
+      </a>
+
+      <a href="/hearings" class="portal-card">
+        <div class="portal-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <div class="portal-info">
+          <h3>Hearing Calendar</h3>
+          <p>Conflict-free scheduling & adjournment logs</p>
+        </div>
+      </a>
+
+      {['ADMIN', 'JUDGE', 'CLERK'].includes(user.role) && (
+        <a href="/reports" class="portal-card">
+          <div class="portal-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <line x1="18" y1="20" x2="18" y2="10"/>
+              <line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          </div>
+          <div class="portal-info">
+            <h3>Court Analytics & Reports</h3>
+            <p>Disposal ratios, pendency aging, & judge workloads</p>
+          </div>
+        </a>
+      )}
+
+      {user.role === 'ADMIN' && (
+        <a href="/admin/users" class="portal-card">
+          <div class="portal-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <div class="portal-info">
+            <h3>Admin & User Control</h3>
+            <p>Manage court officers, staff, advocates, and RBAC</p>
+          </div>
+        </a>
+      )}
+
+      {user.role === 'ADMIN' && (
+        <a href="/admin/audit" class="portal-card">
+          <div class="portal-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div class="portal-info">
+            <h3>System Audit Trail</h3>
+            <p>Inspect immutable event logs and security actions</p>
+          </div>
+        </a>
+      )}
+    </div>
+
+    <!-- Active Cases & Notifications Grid -->
+    <div class="content-split">
+      <section class="cases-section card">
+        <div class="section-top">
+          <h2>Active Matters & Cases</h2>
+          <a href="/cases" class="view-all-link">View All ({total}) &rarr;</a>
+        </div>
+
+        {cases.length === 0 ? (
+          <p class="empty-state">No cases recorded or accessible under your credentials.</p>
+        ) : (
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>CIN</th>
+                  <th>Title & Parties</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cases.map((c) => (
+                  <tr>
+                    <td>
+                      <a href={`/cases/${c.cin}`} class="cin-code">{c.cin}</a>
+                    </td>
+                    <td>
+                      <div class="table-cell-title">{c.title}</div>
+                      <div class="table-cell-subtitle">{c.petitioner_name} v. {c.respondent_name}</div>
+                    </td>
+                    <td><span class="badge badge-court">{c.category}</span></td>
+                    <td><StatusBadge status={c.status} /></td>
+                    <td>
+                      <a href={`/cases/${c.cin}`} class="btn btn-outline btn-xs">Dossier</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section class="notifications-section card">
+        <div class="section-top">
+          <h2>Recent Alerts</h2>
+          <a href="/notifications" class="view-all-link">All Alerts &rarr;</a>
+        </div>
+
+        {notifications.length === 0 ? (
+          <p class="empty-state">No pending notifications for this account.</p>
+        ) : (
+          <ul class="notif-list">
+            {notifications.slice(0, 5).map((n) => (
+              <li class:list={['notif-item', { unread: !n.is_read }]}>
+                <div class="notif-header">
+                  <span class="notif-title">{n.title}</span>
+                  <span class="notif-time">{new Date(n.created_at).toLocaleDateString('en-IN')}</span>
+                </div>
+                <p class="notif-body">{n.message}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<style>
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .badge-role {
+    background-color: var(--accent-gold);
+    color: var(--text-charcoal);
+    font-weight: 700;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  }
+
+  .stat-num {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-charcoal);
+  }
+
+  .stat-label {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+  }
+
+  .portal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .portal-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+
+  .portal-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-interactive);
+  }
+
+  .portal-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: rgba(28, 28, 28, 0.05);
+    color: var(--text-charcoal);
+    flex-shrink: 0;
+  }
+
+  .portal-info h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-charcoal);
+  }
+
+  .portal-info p {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  .content-split {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .section-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.75rem;
+  }
+
+  .section-top h2 {
+    font-size: 1.125rem;
+    margin: 0;
+  }
+
+  .view-all-link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-charcoal);
+    text-decoration: none;
+  }
+
+  .empty-state {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-size: 0.875rem;
+    padding: 1.5rem 0;
+    text-align: center;
+  }
+
+  .notif-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .notif-item {
+    padding: 0.75rem;
+    border-radius: 6px;
+    background: var(--bg-cream);
+    border-left: 3px solid var(--border-light);
+  }
+
+  .notif-item.unread {
+    border-left-color: var(--status-disposed);
+    background: #fffdf5;
+  }
+
+  .notif-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+  }
+
+  .notif-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .notif-time {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .notif-body {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .btn-xs {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+  }
+
+  @media (max-width: 900px) {
+    .content-split {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

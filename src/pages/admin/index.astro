@@ -1,0 +1,13 @@
+---
+// Redirect /admin to /admin/users or login
+import { getCurrentUser } from '../../lib/auth';
+
+const user = getCurrentUser(Astro.request);
+if (!user) {
+  return Astro.redirect('/login');
+}
+if (user.role !== 'ADMIN') {
+  return Astro.redirect('/dashboard');
+}
+return Astro.redirect('/admin/users');
+---

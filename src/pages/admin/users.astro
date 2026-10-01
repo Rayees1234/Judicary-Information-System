@@ -1,0 +1,297 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import { getCurrentUser } from '../../lib/auth';
+import { getAllUsers } from '../../lib/services/userService';
+
+const user = getCurrentUser(Astro.request);
+if (!user || user.role !== 'ADMIN') {
+  return Astro.redirect('/login');
+}
+
+const users = getAllUsers();
+---
+
+<BaseLayout title="User Management & RBAC — JIS Administration">
+  <Navbar />
+
+  <main class="container-wide main-content">
+    <div class="breadcrumbs">
+      <a href="/">Home</a> &rsaquo; <span>Admin Panel</span> &rsaquo; <span>Users & Roles</span>
+    </div>
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">User Accounts & Role-Based Access Control</h1>
+        <p class="page-desc">Manage judicial credentials, bench assignments, and bar council verifications.</p>
+      </div>
+
+      <div class="header-actions">
+        <a href="/admin/audit" class="btn btn-outline btn-sm">
+          System Audit Log &rarr;
+        </a>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-user')">
+          + Create User Account
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Role</th>
+            <th>Contact Email & Phone</th>
+            <th>Designation / Courtroom</th>
+            <th>Bar / ID Number</th>
+            <th>Account Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map(u => (
+            <tr>
+              <td>
+                <span class="username-pill">{u.username}</span>
+              </td>
+              <td>
+                <strong>{u.full_name}</strong>
+              </td>
+              <td>
+                <span class:list={['badge', 
+                  u.role === 'ADMIN' ? 'badge-urgent' : 
+                  u.role === 'JUDGE' ? 'badge-hearing' : 
+                  u.role === 'CLERK' ? 'badge-registered' : 
+                  'badge-adjourned'
+                ]}>
+                  {u.role}
+                </span>
+              </td>
+              <td style="font-size: 0.8125rem;">
+                <div>{u.email}</div>
+                <div style="color: var(--text-secondary);">{u.phone || '—'}</div>
+              </td>
+              <td style="font-size: 0.8125rem;">
+                <div>{u.designation || 'Staff'}</div>
+                <div style="color: var(--text-secondary);">{u.courtroom || 'General Registry'}</div>
+              </td>
+              <td style="font-size: 0.8125rem; font-family: var(--font-mono);">
+                {u.bar_registration_no || u.id_number || '—'}
+              </td>
+              <td style="font-size: 0.75rem; color: var(--text-secondary);">
+                {u.created_at ? u.created_at.split(' ')[0] : 'System'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="modal-new-user" class="modal-overlay" style="display: none;">
+      <div class="modal-box card" style="max-width: 550px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Create User & Assign RBAC Role</h3>
+          <button class="close-btn" onclick="closeModal('modal-new-user')">&times;</button>
+        </div>
+
+        <form id="form-create-user" onsubmit="handleCreateUser(event)">
+          <div class="form-grid-2" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label class="label">Username *</label>
+              <input type="text" name="username" class="input" placeholder="e.g. judge.mukherjee" required />
+            </div>
+
+            <div class="form-group">
+              <label class="label">Role *</label>
+              <select name="role" class="select" required>
+                <option value="JUDGE">Judge / Judicial Officer</option>
+                <option value="CLERK">Court Clerk / Registrar</option>
+                <option value="LAWYER">Advocate / Legal Counsel</option>
+                <option value="LITIGANT">Litigant / Citizen</option>
+                <option value="ADMIN">System Administrator</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label class="label">Full Name *</label>
+              <input type="text" name="fullName" class="input" placeholder="e.g. Hon'ble Justice P. Mukherjee" required />
+            </div>
+
+            <div class="form-group">
+              <label class="label">Official Email *</label>
+              <input type="email" name="email" class="input" placeholder="name@jis.gov.in" required />
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label class="label">Contact Phone</label>
+              <input type="text" name="phone" class="input" placeholder="+91-XXXXXXXXXX" />
+            </div>
+
+            <div class="form-group">
+              <label class="label">Initial Password</label>
+              <input type="password" name="password" class="input" placeholder="Leave empty for default (Welcome@123)" />
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom: 1.5rem;">
+            <div class="form-group">
+              <label class="label">Courtroom / Desk</label>
+              <input type="text" name="courtroom" class="input" placeholder="e.g. Courtroom 3" />
+            </div>
+
+            <div class="form-group">
+              <label class="label">Bar Reg. / ID Number</label>
+              <input type="text" name="barRegistrationNo" class="input" placeholder="e.g. D/2020/4512" />
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Create User Account</button>
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-new-user')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<script is:inline>
+  function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+  }
+  function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+
+  async function handleCreateUser(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const payload = Object.fromEntries(formData);
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create user');
+      }
+
+      alert(`User account ${data.user.username} created successfully!`);
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+</script>
+
+<style>
+  .main-content {
+    padding: 2.5rem 0 4rem;
+  }
+
+  .breadcrumbs {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+  }
+
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+
+  .page-desc {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .username-pill {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    background: var(--bg-cream);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-box {
+    width: 100%;
+    background: #ffffff;
+    padding: 2rem;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+    padding-top: 1rem;
+  }
+
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+</style>

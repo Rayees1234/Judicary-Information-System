@@ -1,7 +1,8 @@
 {
-  "name": "dimensional-disk",
+  "name": "judiciary-information-system",
   "type": "module",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "description": "Judiciary Information System (JIS) — Court Case Management & Record Keeping",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -9,12 +10,21 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "tsx --test tests/jis.test.ts",
+    "seed": "tsx src/lib/db/run-seed.ts"
   },
   "dependencies": {
-    "astro": "^7.3.5"
+    "@astrojs/node": "^11.1.6",
+    "astro": "^7.3.5",
+    "zod": "^4.6.5"
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
   }
 }
